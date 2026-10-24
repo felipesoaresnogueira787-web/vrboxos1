@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "vrboxos.zip"
+      - "*.zip"
       - ".github/workflows/build.yml"
 
 jobs:
@@ -23,28 +23,39 @@ jobs:
 
       - name: Preparar Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
 
-      - name: Instalar Gradle
+      - name: Preparar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
       - name: Extrair projeto
         run: |
+          ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)
+          if [ -z "$ZIP" ]; then
+            echo "ERRO: Nenhum arquivo ZIP encontrado na raiz."
+            exit 1
+          fi
           mkdir projeto
-          unzip -q vrboxos.zip -d projeto
-          echo "Arquivos Gradle encontrados:"
-          find projeto \( -name settings.gradle -o -name settings.gradle.kts \) -print
+          unzip -q "$ZIP" -d projeto
+          echo "Estrutura do projeto:"
+          find projeto -maxdepth 4 -type f | head -200
 
-      - name: Compilar APK
+      - name: Localizar projeto Gradle
+        id: localizar
         run: |
           ROOT=$(find projeto -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
           if [ -z "$ROOT" ]; then
-            echo "Não encontrei o arquivo settings.gradle do projeto."
+            echo "ERRO: settings.gradle ou settings.gradle.kts não encontrado."
             exit 1
           fi
-          cd "$(dirname "$ROOT")"
-          gradle assembleDebug
+          echo "diretorio=$(dirname "$ROOT")" >> "$GITHUB_OUTPUT"
+
+      - name: Compilar APK
+        working-directory: ${{ steps.localizar.outputs.diretorio }}
+        run: gradle assembleDebug
 
       - name: Salvar APK
         uses: actions/upload-artifact@v4
@@ -52,4 +63,5 @@ jobs:
           name: VR-BOX-OS-APK
           path: projeto/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          
           
