@@ -1,0 +1,56 @@
+
+name: Build VR BOX OS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "vrboxos.zip"
+      - ".github/workflows/build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar arquivos
+        uses: actions/checkout@v4
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Extrair projeto
+        run: |
+          mkdir projeto
+          unzip -q vrboxos.zip -d projeto
+          echo "Arquivos Gradle encontrados:"
+          find projeto \( -name settings.gradle -o -name settings.gradle.kts \) -print
+
+      - name: Compilar APK
+        run: |
+          ROOT=$(find projeto -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+          if [ -z "$ROOT" ]; then
+            echo "Não encontrei o arquivo settings.gradle do projeto."
+            exit 1
+          fi
+          cd "$(dirname "$ROOT")"
+          gradle assembleDebug
+
+      - name: Salvar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VR-BOX-OS-APK
+          path: projeto/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
